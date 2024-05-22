@@ -1,0 +1,4 @@
+[tasks.dev]
+description = "Executa o projeto em modo de desenvolvimento"
+command = "cargo"
+args = ["watch", "-q", "-c", "-w", "src/", "-x", "run"]
