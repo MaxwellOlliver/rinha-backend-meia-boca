@@ -31,6 +31,8 @@ O sistema deve permitir usuários de criarem uma conta, autenticarem no sistema,
 
 -   Depositar dinheiro
 
+-   Sacar dinheiro
+
 **Rotas**
 
 Por padrão, todas as rotas que forem bem sucedidas devem retornar código 200. As não sucedidas, 422.
@@ -81,8 +83,7 @@ Body
 
 ```json
 {
-	"value": "number",
-	"description": "string(100)"
+	"amount": "number"
 }
 ```
 
@@ -128,7 +129,7 @@ Response (200)
 }
 ```
 
-`GET /wallet/statement`
+`GET /wallet/transactions`
 
 Body
 
@@ -141,11 +142,13 @@ Response (200)
 ```json
 {
 	"balance": "number",
-	"transfers": [
+	"transactions": [
 		{
 			"id": "string",
-			"value": "number",
-			"description": "string",
+			"userId": "string",
+			"relatedUserId": "string",
+			"type": "deposit | withdraw | transfer",
+			"amount": "amount",
 			"createdAt": "string"
 		}
 	]

@@ -1,62 +1,73 @@
-use crate::auth::Claims;
-use actix_service::Service;
-use actix_web::{dev::ServiceRequest, dev::ServiceResponse, Error, HttpMessage};
-use futures::future::{ok, Ready};
-use futures::FutureExt;
-use jsonwebtoken::{decode, DecodingKey, Validation};
-use std::rc::Rc;
+use std::future::{ready, Ready};
 
-pub struct AuthMiddleware<S> {
-    service: Rc<S>,
-    secret_key: String,
-}
+use crate::helpers::jwt::verify_token;
+use actix_web::{
+    body::EitherBody,
+    dev::{forward_ready, Service, ServiceRequest, ServiceResponse, Transform},
+    http::header::AUTHORIZATION,
+    Error, HttpMessage, HttpResponse,
+};
+use futures_util::future::LocalBoxFuture;
 
-impl<S> AuthMiddleware<S> {
-    pub fn new(service: S, secret_key: String) -> Self {
-        AuthMiddleware {
-            service: Rc::new(service),
-            secret_key,
-        }
-    }
-}
+pub struct Authentication;
 
-impl<S, B> Service for AuthMiddleware<S>
+impl<S, B> Transform<S, ServiceRequest> for Authentication
 where
-    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
     S::Future: 'static,
+    B: 'static,
 {
-    type Request = ServiceRequest;
-    type Response = ServiceResponse<B>;
+    type Response = ServiceResponse<EitherBody<B>>; // update here
     type Error = Error;
-    type Future = futures::future::Either<S::Future, Ready<Result<Self::Response, Self::Error>>>;
+    type InitError = ();
+    type Transform = AuthenticationMiddleware<S>;
+    type Future = Ready<Result<Self::Transform, Self::InitError>>;
 
-    fn poll_ready(
-        &mut self,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Result<(), Self::Error>> {
-        self.service.poll_ready(cx)
+    fn new_transform(&self, service: S) -> Self::Future {
+        ready(Ok(AuthenticationMiddleware { service }))
     }
+}
 
-    fn call(&mut self, req: ServiceRequest) -> Self::Future {
-        if let Some(auth_header) = req.headers().get("Authorization") {
+pub struct AuthenticationMiddleware<S> {
+    service: S,
+}
+
+impl<S, B> Service<ServiceRequest> for AuthenticationMiddleware<S>
+where
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    S::Future: 'static,
+    B: 'static,
+{
+    type Response = ServiceResponse<EitherBody<B>>; // update here
+    type Error = Error;
+    type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
+
+    forward_ready!(service);
+
+    fn call(&self, req: ServiceRequest) -> Self::Future {
+        let auth_header = req.headers().get(AUTHORIZATION).cloned();
+
+        if let Some(auth_header) = auth_header {
             if let Ok(auth_str) = auth_header.to_str() {
-                if auth_str.starts_with("Bearer ") {
-                    let token = &auth_str[7..]; // Remove "Bearer " prefix
-                    if let Ok(token_data) = decode::<Claims>(
-                        token,
-                        &DecodingKey::from_secret(self.secret_key.as_ref()),
-                        &Validation::default(),
-                    ) {
-                        req.extensions_mut().insert(token_data.claims);
+                if let Some(token) = auth_str.strip_prefix("Bearer ") {
+                    if let Ok(token_data) = verify_token(token) {
+                        println!("Token data: {:?}", token_data);
+                        req.extensions_mut().insert(token_data.sub);
                         let fut = self.service.call(req);
-                        return futures::future::Either::Left(fut);
+                        return Box::pin(async move {
+                            let res = fut.await?;
+                            Ok(res.map_into_left_body())
+                        });
                     }
                 }
             }
         }
 
-        futures::future::Either::Right(ok(
-            req.into_response(actix_web::HttpResponse::Unauthorized().finish().into_body())
-        ))
+        Box::pin(async move {
+            let http_res = HttpResponse::Unauthorized().finish();
+            let (http_req, _) = req.into_parts();
+            let res = ServiceResponse::new(http_req, http_res);
+            Ok(res.map_into_right_body())
+        })
     }
 }
