@@ -1,6 +1,7 @@
 mod auth;
 mod controllers;
 mod entity;
+mod errors;
 mod helpers;
 mod middlewares;
 mod routes;

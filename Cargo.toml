@@ -16,6 +16,7 @@ chrono = "0.4"
 sea-orm = "0.12.15"
 sea-orm-macros = "0.12.15"
 futures-util = "0.3"
+thiserror = "1.0"
 migration = { path = "./migration" }
 
 [workspace]

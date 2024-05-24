@@ -2303,6 +2303,7 @@ dependencies = [
  "sea-orm-macros",
  "serde",
  "serde_json",
+ "thiserror",
  "uuid",
 ]
 

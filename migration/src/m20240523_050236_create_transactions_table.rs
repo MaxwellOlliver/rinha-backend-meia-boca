@@ -15,11 +15,14 @@ impl MigrationTrait for Migration {
                         ColumnDef::new(Transactions::Id)
                             .uuid()
                             .not_null()
-                            .primary_key(),
+                            .primary_key()
+                            .default(Expr::cust("uuid_generate_v4()")),
                     )
                     .col(ColumnDef::new(Transactions::UserId).uuid().not_null())
                     .col(
-                        ColumnDef::new(Transactions::Type).string().not_null(), // Tipo da transação: 'deposit', 'withdraw', 'transfer'
+                        ColumnDef::new(Transactions::TransactionType)
+                            .string()
+                            .not_null(),
                     )
                     .col(
                         ColumnDef::new(Transactions::Amount)
@@ -58,7 +61,7 @@ enum Transactions {
     Table,
     Id,
     UserId,
-    Type,
+    TransactionType,
     Amount,
     RelatedUserId,
     CreatedAt,

@@ -1,7 +1,7 @@
 use crate::{
     entity::{user, wallet},
     helpers::encrypt,
-    schemas::{user_schema::CreateUserSchema, wallet_schema::CreateWalletSchema},
+    schemas::user_schema::CreateUserSchema,
 };
 use migration::sea_orm::{ColumnTrait, DatabaseConnection, DbErr};
 use sea_orm::{ActiveModelTrait, EntityTrait, QueryFilter, TransactionTrait};
